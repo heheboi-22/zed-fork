@@ -5109,11 +5109,8 @@ impl Panel for AgentPanel {
         });
     }
 
-    fn set_active(&mut self, active: bool, window: &mut Window, cx: &mut Context<Self>) {
+    fn set_active(&mut self, active: bool, _window: &mut Window, _cx: &mut Context<Self>) {
         self.is_active = active;
-        if active {
-            self.ensure_thread_initialized(window, cx);
-        }
     }
 
     fn remote_id() -> Option<proto::PanelId> {
@@ -5161,106 +5158,6 @@ impl Panel for AgentPanel {
 }
 
 impl AgentPanel {
-    fn ensure_thread_initialized(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if matches!(self.base_view, BaseView::Uninitialized) {
-            if self.pending_terminal_spawn.is_some() {
-                return;
-            }
-            if self.should_create_terminal_for_new_entry(cx) {
-                let terminal_id = TerminalId::new();
-                self.pending_terminal_spawn = Some(terminal_id);
-                cx.defer_in(window, move |this, window, cx| {
-                    if matches!(this.base_view, BaseView::Uninitialized)
-                        && this.pending_terminal_spawn == Some(terminal_id)
-                        && this.should_create_terminal_for_new_entry(cx)
-                    {
-                        this.create_initial_terminal(
-                            terminal_id,
-                            AgentThreadSource::AgentPanel,
-                            window,
-                            cx,
-                        );
-                    } else if this.pending_terminal_spawn == Some(terminal_id) {
-                        this.pending_terminal_spawn = None;
-                    }
-                });
-            } else {
-                self.activate_draft(false, AgentThreadSource::AgentPanel, window, cx);
-            }
-        }
-    }
-
-    fn create_initial_terminal(
-        &mut self,
-        terminal_id: TerminalId,
-        source: AgentThreadSource,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if !self.supports_terminal(cx) {
-            if self.pending_terminal_spawn == Some(terminal_id) {
-                self.pending_terminal_spawn = None;
-            }
-            return;
-        }
-        let working_directory = self.terminal_working_directory(None, cx);
-        self.spawn_initial_terminal(terminal_id, working_directory, source, window, cx);
-    }
-
-    #[cfg(not(test))]
-    fn spawn_initial_terminal(
-        &mut self,
-        terminal_id: TerminalId,
-        working_directory: Option<PathBuf>,
-        source: AgentThreadSource,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.spawn_terminal(
-            terminal_id,
-            working_directory,
-            None,
-            None,
-            None,
-            true,
-            false,
-            true,
-            source,
-            window,
-            cx,
-        );
-    }
-
-    #[cfg(test)]
-    fn spawn_initial_terminal(
-        &mut self,
-        terminal_id: TerminalId,
-        working_directory: Option<PathBuf>,
-        source: AgentThreadSource,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if let Err(error) = self.insert_display_only_terminal(
-            terminal_id,
-            working_directory,
-            None,
-            None,
-            None,
-            true,
-            false,
-            true,
-            source,
-            window,
-            cx,
-        ) {
-            log::error!("failed to spawn test agent panel terminal: {error:#}");
-            if self.pending_terminal_spawn == Some(terminal_id) {
-                self.pending_terminal_spawn = None;
-                cx.notify();
-            }
-        }
-    }
-
     fn destination_has_meaningful_state(&self, cx: &App) -> bool {
         if !self.retained_threads.is_empty() || !self.terminals.is_empty() {
             return true;
@@ -5879,6 +5776,75 @@ impl AgentPanel {
         })
     }
 
+    fn render_no_entry_state(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let focus_handle = self.focus_handle(cx);
+
+        v_flex()
+            .id("agent-panel-no-entry-state")
+            .track_focus(&focus_handle)
+            .p_4()
+            .size_full()
+            .items_center()
+            .justify_center()
+            .child(
+                v_flex()
+                    .max_w_64()
+                    .gap_3()
+                    .items_center()
+                    .child(
+                        Icon::new(IconName::ZedAssistant)
+                            .size(IconSize::XLarge)
+                            .color(Color::Muted),
+                    )
+                    .child(
+                        v_flex()
+                            .gap_1()
+                            .items_center()
+                            .text_center()
+                            .child(Label::new("No agent open"))
+                            .child(
+                                Label::new(
+                                    "Pick a thread from the sidebar or history to continue, or start a new one.",
+                                )
+                                .size(LabelSize::Small)
+                                .color(Color::Muted),
+                            ),
+                    )
+                    .child(
+                        v_flex()
+                            .w_full()
+                            .gap_1()
+                            .child(
+                                Button::new("no-entry-new-agent", "New Agent")
+                                    .full_width()
+                                    .style(ButtonStyle::Filled)
+                                    .start_icon(Icon::new(IconName::Plus).size(IconSize::Small))
+                                    .key_binding(KeyBinding::for_action_in(
+                                        &NewThread,
+                                        &focus_handle,
+                                        cx,
+                                    ))
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        this.activate_new_thread(
+                                            true,
+                                            AgentThreadSource::AgentPanel,
+                                            window,
+                                            cx,
+                                        );
+                                    })),
+                            )
+                            .child(
+                                Button::new("no-entry-history", "Browse History")
+                                    .full_width()
+                                    .start_icon(Icon::new(IconName::Clock).size(IconSize::Small))
+                                    .on_click(|_, window, cx| {
+                                        window.dispatch_action(ToggleThreadHistory.boxed_clone(), cx);
+                                    }),
+                            ),
+                    ),
+            )
+    }
+
     fn render_toolbar(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let agent_server_store = self.project.read(cx).agent_server_store().clone();
 
@@ -6142,12 +6108,15 @@ impl AgentPanel {
 
         enum ToolbarMode {
             Terminal,
+            NoEntry,
             EmptyThread,
             ActiveThread,
         }
 
         let mode = if matches!(self.base_view, BaseView::Terminal { .. }) {
             ToolbarMode::Terminal
+        } else if matches!(self.base_view, BaseView::Uninitialized) {
+            ToolbarMode::NoEntry
         } else if self.active_thread_has_messages(cx) {
             ToolbarMode::ActiveThread
         } else {
@@ -6670,7 +6639,7 @@ impl Render for AgentPanel {
                 VisibleSurface::Uninitialized if !self.has_open_project(cx) => {
                     parent.child(self.render_no_project_state(cx))
                 }
-                VisibleSurface::Uninitialized => parent,
+                VisibleSurface::Uninitialized => parent.child(self.render_no_entry_state(cx)),
                 VisibleSurface::AgentThread(conversation_view) => parent
                     .child(conversation_view.clone())
                     .child(self.render_drag_target(cx)),
@@ -7746,60 +7715,33 @@ mod tests {
     }
 
     #[gpui::test]
-    async fn test_pending_terminal_restore_prevents_initial_terminal_creation(
-        cx: &mut TestAppContext,
-    ) {
+    async fn test_activation_does_not_open_an_entry(cx: &mut TestAppContext) {
         let (panel, mut cx) = setup_panel(cx).await;
 
-        panel.update_in(&mut cx, |panel, window, cx| {
-            panel.last_created_entry_kind = AgentPanelEntryKind::Terminal;
-            panel.pending_terminal_spawn = Some(TerminalId::new());
-            panel.set_active(true, window, cx);
-        });
-        for _ in 0..4 {
-            cx.run_until_parked();
-        }
+        for entry_kind in [AgentPanelEntryKind::Thread, AgentPanelEntryKind::Terminal] {
+            panel.update_in(&mut cx, |panel, window, cx| {
+                panel.last_created_entry_kind = entry_kind;
+                panel.set_active(true, window, cx);
+                panel.set_active(true, window, cx);
+            });
+            for _ in 0..4 {
+                cx.run_until_parked();
+            }
 
-        panel.read_with(&cx, |panel, cx| {
-            assert!(
-                panel.terminals(cx).is_empty(),
-                "activation while a terminal restore is pending should not create a second terminal"
-            );
-            assert!(
-                panel.active_conversation_view().is_none(),
-                "activation while a terminal restore is pending should not fall back to a draft"
-            );
-        });
+            panel.read_with(&cx, |panel, cx| {
+                assert!(
+                    matches!(panel.base_view, BaseView::Uninitialized),
+                    "activating the panel should leave it empty instead of opening an entry"
+                );
+                assert!(panel.terminals(cx).is_empty());
+                assert!(panel.active_conversation_view().is_none());
+                assert!(panel.draft_thread.is_none());
+            });
+        }
     }
 
     #[gpui::test]
-    async fn test_repeated_activation_only_creates_one_initial_terminal(cx: &mut TestAppContext) {
-        let (panel, mut cx) = setup_panel(cx).await;
-
-        panel.update_in(&mut cx, |panel, window, cx| {
-            panel.last_created_entry_kind = AgentPanelEntryKind::Terminal;
-            panel.set_active(true, window, cx);
-            panel.set_active(true, window, cx);
-        });
-        for _ in 0..8 {
-            cx.run_until_parked();
-        }
-
-        panel.read_with(&cx, |panel, cx| {
-            assert_eq!(
-                panel.terminals(cx).len(),
-                1,
-                "repeated activation should only enqueue one initial terminal"
-            );
-            assert!(
-                panel.active_terminal_id().is_some(),
-                "the single initial terminal should become active"
-            );
-        });
-    }
-
-    #[gpui::test]
-    async fn test_new_terminal_prevents_initial_terminal_creation(cx: &mut TestAppContext) {
+    async fn test_activation_while_terminal_spawns_keeps_single_terminal(cx: &mut TestAppContext) {
         let (panel, mut cx) = setup_panel(cx).await;
 
         let (terminal_landed, spawn_gate) = futures::channel::oneshot::channel::<()>();
@@ -8141,14 +8083,15 @@ mod tests {
 
         loaded.read_with(cx, |panel, cx| {
             assert!(
-                panel.active_terminal_id().is_some(),
-                "new workspace should initialize to a terminal when terminal was the globally last used entry kind"
+                panel.should_create_terminal_for_new_entry(cx),
+                "new workspace should inherit the globally last used entry kind"
             );
             assert!(
-                panel.active_conversation_view().is_none(),
-                "new workspace should not initialize to a draft when terminal is the global entry kind"
+                matches!(panel.base_view, BaseView::Uninitialized),
+                "new workspace should stay empty until the user opens an entry"
             );
-            assert!(panel.should_create_terminal_for_new_entry(cx));
+            assert!(panel.active_terminal_id().is_none());
+            assert!(panel.active_conversation_view().is_none());
         });
     }
 
