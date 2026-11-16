@@ -70,7 +70,7 @@ Cara mengisi setelah sinkron:
 
 ### 6. Agent chat
 - `crates/agent_ui/src/message_editor.rs`: background composer transparan.
-- `crates/agent_ui/src/conversation_view/thread_view.rs`: composer tumbuh otomatis (`AutoHeight`, scroll bila penuh); kartu terminal dan command block didesain ulang.
+- `crates/agent_ui/src/conversation_view/thread_view.rs`: composer tumbuh otomatis (`AutoHeight`, scroll bila penuh); kartu terminal dan command block didesain ulang; header blok "Thinking" memakai `text_placeholder` (bukan `text_muted`) supaya lebih pudar dan tidak bersaing dengan isi pesan.
 - `crates/agent_ui/src/ui/terminal_tool_header.rs`: header baru (ikon, "Running/Ran command", disclosure selalu terlihat).
 
 ### 7. Identitas fork

@@ -8528,12 +8528,12 @@ impl ThreadView {
                             .child(
                                 Icon::new(IconName::ToolThink)
                                     .size(IconSize::Small)
-                                    .color(Color::Muted),
+                                    .color(Color::Placeholder),
                             )
                             .child(
                                 div()
                                     .text_size(self.tool_name_font_size())
-                                    .text_color(cx.theme().colors().text_muted)
+                                    .text_color(cx.theme().colors().text_placeholder)
                                     .child("Thinking"),
                             ),
                     )
