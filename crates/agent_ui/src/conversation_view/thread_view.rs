@@ -8569,6 +8569,7 @@ impl ThreadView {
                                     this.track_scroll(&scroll_handle)
                                 })
                                 .overflow_hidden()
+                                .opacity(0.7)
                                 .child(
                                     self.render_message_content(
                                         entry_ix, chunk_ix, chunk, window, cx,
