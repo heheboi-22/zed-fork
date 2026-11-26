@@ -74,7 +74,7 @@ Cara mengisi setelah sinkron:
 - `crates/agent_ui/src/threads_archive_view.rs`: mode `popover` (tanpa window controls).
 - `crates/agent_ui/src/agent_panel.rs`, `crates/zed_actions/src/lib.rs`: tombol dan action `ToggleThreadHistory`.
 - `crates/agent_settings`, `crates/settings_content/src/agent.rs`: `ThreadsSidebarScope`.
-- Test sidebar memakai helper scope `all` di inisialisasi.
+- Test sidebar memakai helper scope `all` di inisialisasi, dan `test_header_alignment_with_title_bar_and_tabs` mematikan `island_layout` karena island sengaja menggeser tab bar dari title bar.
 
 ### 5. Git panel multi-repo gaya VS Code
 - `crates/git_ui/src/git_panel.rs` (+ `git_panel_settings.rs`): tiap repo jadi section (`repository_override`), urutan: header → kotak commit → daftar file. Header: nama repo, branch (klik = branch picker), Refresh, Fetch, Pull, Push dengan hitungan incoming/outgoing, jumlah perubahan.
