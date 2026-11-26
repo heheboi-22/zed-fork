@@ -2152,7 +2152,7 @@ async fn test_header_alignment_with_title_bar_and_tabs(cx: &mut TestAppContext) 
     cx.update(|cx| AgentRegistryStore::init_test_global(cx, Vec::new()));
     let (multi_workspace, cx) =
         cx.add_window_view(|window, cx| MultiWorkspace::test_new(project, window, cx));
-    let (sidebar, _panel) = setup_sidebar_with_agent_panel(&multi_workspace, cx);
+    let (_sidebar, _panel) = setup_sidebar_with_agent_panel(&multi_workspace, cx);
     let workspace =
         multi_workspace.read_with(cx, |multi_workspace, _| multi_workspace.workspace().clone());
     let title_bar = cx.new(|cx| {
@@ -2164,13 +2164,9 @@ async fn test_header_alignment_with_title_bar_and_tabs(cx: &mut TestAppContext) 
     });
     let window_handle = cx.update(|window, _| window.window_handle());
 
-    for (header_selector, search_selector) in [
-        ("sidebar-header", "sidebar-header-search"),
-        ("threads-archive-header", "threads-archive-header-search"),
-    ] {
-        if header_selector == "threads-archive-header" {
-            sidebar.update_in(cx, |sidebar, window, cx| sidebar.show_archive(window, cx));
-        }
+    // The threads archive is always a popover overlay in this fork, so only the
+    // docked sidebar header shares the title bar/tab alignment contract.
+    for (header_selector, search_selector) in [("sidebar-header", "sidebar-header-search")] {
         for ((font_size, density, decorations, position), scale_factor) in [
             (
                 12.,
@@ -2225,6 +2221,9 @@ async fn test_header_alignment_with_title_bar_and_tabs(cx: &mut TestAppContext) 
                         settings.title_bar.get_or_insert_default().show = Some(visibility);
                         settings.theme.ui_font_size = Some(FontSize(font_size));
                         settings.theme.ui_density = Some(density);
+                        // The island layout deliberately offsets the tab bar from the
+                        // title bar, so this alignment contract only holds without it.
+                        settings.workspace.island_layout = Some(false);
                         settings
                             .agent
                             .get_or_insert_default()
