@@ -5,8 +5,8 @@ Dokumen ini mencatat apa saja yang fork ini ubah dari upstream Zed, supaya waktu
 ## Basis
 
 - Branch kerja: `custom` (remote `hehenugas/zed-fork`). Remote `upstream` = `zed-industries/zed`.
-- Basis upstream saat ini: tag `v1.24.4` = commit `aed37547d8` ("Bump to 1.24.4"), stable v1.24.x (branch upstream `v1.24.x`). Semua perbedaan fork dihitung dari sini:
-  `git diff v1.24.4 custom --stat` (47 file). Perbarui baris ini setiap kali sinkron.
+- Basis upstream saat ini: tag `v1.30.2` = commit `610ea4b8de` ("v1.30.x stable for @JosephTLyons"). Semua perbedaan fork dihitung dari sini:
+  `git diff v1.30.2 custom --stat` (74 file). Perbarui baris ini setiap kali sinkron.
 - Branch lokal `main` BUKAN basis. Isinya upstream main yang lebih baru dan sudah menyimpang dari stable, jadi `git diff main custom` penuh noise upstream.
 - Sinkron ke upstream: `script/fork-sync.sh` (jalan dari `custom`, merge tag stable terbaru lalu `cargo check -p zed`). Setiap sinkron WAJIB dicatat di bagian "Riwayat sinkronisasi upstream" di bawah.
 
@@ -16,13 +16,28 @@ Catat satu baris tiap kali fork di-sync ke upstream (terbaru di atas). Isi: tang
 
 | Tanggal | Tag upstream | Commit tag | Commit merge di `custom` | Hasil | Catatan |
 |---|---|---|---|---|---|
+| 2026-11-27 | `v1.30.2` | `610ea4b8de` | `aeed6173c3` | `cargo check -p zed` hijau, 0 warning | 22 konflik; lihat catatan di bawah |
 | 2026-10-21 | `v1.24.4` | `aed37547d8` | (basis awal, tanpa merge) | fork dibuat dari tag ini | Commit fork pertama: `de7f455f66` |
 
 Cara mengisi setelah sinkron:
-1. `git describe --tags --abbrev=0 upstream/v1.24.x` (atau tag yang dipakai `fork-sync.sh`) untuk nama tag, lalu `git rev-parse --short=10 <tag>^{commit}` untuk commit-nya.
+1. `git tag --list 'v[0-9]*' | grep -E '^v[0-9]+(\.[0-9]+)*$' | sort -V | tail -n 1` (sama seperti `fork-sync.sh`) untuk nama tag, lalu `git rev-parse --short=10 <tag>^{commit}` untuk commit-nya.
 2. `git log --oneline -1` di `custom` setelah merge untuk commit merge.
 3. Ganti nilai "Basis upstream saat ini" di bagian Basis, dan jalankan ulang `git diff <tag> custom --stat` untuk memperbarui jumlah file.
 4. Tulis konflik yang terjadi dan cara menyelesaikannya, supaya sinkron berikutnya lebih cepat.
+
+### Catatan sinkron v1.30.2 (2026-11-27)
+
+- Clone di mesin ini sempat shallow (`.git/shallow` menunjuk commit fork pertama), sehingga merge tidak punya merge-base. Perbaikan: `git fetch --unshallow origin`, lalu `git fetch upstream refs/tags/v1.30.2:refs/tags/v1.30.2`.
+- 22 file konflik:
+  - Fork tidak pernah mengubah file ini; konflik hanya karena cabang stable upstream berbeda. Ambil versi upstream: `Cargo.lock`, `crates/agent_servers/src/acp.rs` (isi fork cuma ekspektasi test lama yang sudah tidak ada), `edit_prediction*`, `google_ai/*`, `language_models/src/provider/opencode.rs`, `markdown`, `node_runtime`, `crates/zed/Cargo.toml`, `docs/src/account/plans-and-pricing.md`.
+  - Fork dan upstream sama-sama berubah:
+    - `crates/git_ui/src/commit_view.rs`: upstream memperkenalkan `CommitViewOptions` (stash, file_filter, reveal_file); parameter `comparison_base` fork dipindah ke struct itu.
+    - `crates/agent_ui/src/conversation_view/thread_view.rs`: desain kartu terminal fork dipertahankan (flush, blok Shell, footer status). Bagian `bg`/rounded corner dari upstream dibuang karena mengubah tampilan baris collapsed.
+    - `crates/sidebar/src/sidebar.rs`: `workspaces_for_project_group` sekarang iterator; `is_running` upstream menjadi `can_request_stop`. `ShowMore` menyesuaikan iterator baru.
+    - `crates/agent_ui/src/threads_archive_view.rs`: window controls memakai `SidebarWindowControls` upstream, tetapi mode popover fork memaksa tanpa window control.
+    - `script/bundle-linux`: binary remote server sekarang `remote-server` (tanda hubung); guard `ZED_FORK_FAST` dipertahankan.
+    - `crates/git/src/repository.rs`: method commit action fork (`checkout_commit`, `revert_commit`, `rebase_onto`, `format_patch`) dipertahankan karena dipakai Git Graph.
+- Auto-merge sempat menghilangkan `DiffBase::is_merge_base()` (`crates/project/src/git_store/diff_buffer_list.rs`); sudah dikembalikan.
 
 ## Prinsip fork
 
@@ -95,11 +110,13 @@ Cara mengisi setelah sinkron:
 3. `gh` punya dua akun; yang berhak tulis: `hehenugas` (`gh auth switch -u hehenugas`). Selalu pakai `-R hehenugas/zed-fork` (default gh menunjuk upstream). Akun aktif pernah kembali sendiri ke `Aorus22` (403 saat push).
 4. Langkah "Publish release" pernah gagal sekali dengan 403 "Resource not accessible by integration"; AppImage tetap ada di artifact run (`gh run download <id> -n zed-fork-appimage`).
 5. Hanya satu build pada satu waktu: batalkan build lama (`gh run cancel`) bila commit baru menyusul.
+6. Clone shallow membuat merge upstream tidak punya merge-base (hampir semua file jadi konflik). Cek `git rev-parse --is-shallow-repository`; kalau `true`, jalankan `git fetch --unshallow origin` sebelum sync.
+7. Build `webrtc-sys` mengunduh `webrtc-linux-x64-release.zip` (~126 MB) saat `cargo check`. Kalau timeout, unduh manual, ekstrak, lalu set `LK_CUSTOM_WEBRTC=<hasil ekstrak>/linux-x64-release` saat menjalankan cargo.
 
 ## Titik rawan konflik saat merge upstream
 
 Urut dari yang paling mungkin konflik:
-`crates/git_ui/src/git_panel.rs`, `crates/workspace/src/workspace.rs`, `crates/workspace/src/dock.rs`, `crates/workspace/src/multi_workspace.rs`, `crates/sidebar/src/sidebar.rs` (+ tests), `crates/agent_ui/src/{agent_panel.rs,threads_archive_view.rs}`, `crates/agent_ui/src/conversation_view/thread_view.rs`, `crates/title_bar/src/title_bar.rs`, `crates/settings/src/settings_store.rs`, `crates/release_channel/src/lib.rs`, `script/bundle-linux`.
+`crates/git_ui/src/git_panel.rs`, `crates/git_ui/src/commit_view.rs`, `crates/agent_ui/src/conversation_view/thread_view.rs`, `crates/workspace/src/workspace.rs`, `crates/workspace/src/dock.rs`, `crates/workspace/src/multi_workspace.rs`, `crates/sidebar/src/sidebar.rs` (+ tests), `crates/agent_ui/src/{agent_panel.rs,threads_archive_view.rs,config_options.rs}`, `crates/agent_ui/src/ui/terminal_tool_header.rs`, `crates/title_bar/src/title_bar.rs`, `crates/git/src/repository.rs`, `crates/project/src/git_store/diff_buffer_list.rs`, `crates/settings/src/settings_store.rs`, `crates/release_channel/src/lib.rs`, `script/bundle-linux`.
 
 Checklist setelah sinkron: catat di tabel riwayat, `cargo check -p zed`, `cargo test -p sidebar -p git_ui -p settings`, jalankan AppImage hasil build sebentar dari terminal (cek panic saat startup), lalu cek tampilan: island, tombol title bar, git panel multi-repo, sidebar threads.
 
