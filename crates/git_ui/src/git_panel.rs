@@ -18404,7 +18404,10 @@ mod tests {
                 .items_of_type::<BranchDiff>(cx)
                 .filter_map(|branch_diff| match branch_diff.read(cx).diff_base(cx) {
                     DiffBase::Merge { base_ref } => Some(base_ref.to_string()),
-                    DiffBase::Head | DiffBase::Index | DiffBase::Staged => None,
+                    DiffBase::Head
+                    | DiffBase::Index
+                    | DiffBase::Staged
+                    | DiffBase::CommitWorktree { .. } => None,
                 })
                 .collect()
         })
