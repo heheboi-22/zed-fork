@@ -1,7 +1,6 @@
 mod agent_configuration;
 pub mod agent_connection_store;
 mod agent_diff;
-mod agent_model_selector;
 mod agent_panel;
 mod agent_registry_ui;
 mod buffer_codegen;
@@ -14,13 +13,12 @@ mod diagnostics;
 pub mod draft_prompt_store;
 mod entry_view_state;
 mod external_source_prompt;
-mod favorite_models;
 mod inline_assistant;
 mod inline_prompt_editor;
-mod language_model_selector;
 mod mention_set;
 mod message_editor;
 mod mode_selector;
+mod model_search;
 mod model_selector;
 mod model_selector_popover;
 mod profile_selector;
@@ -41,7 +39,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use ::ui::IconName;
-use agent_client_protocol::schema::{v1 as acp_v1, v2 as acp_v2};
+use agent_client_protocol::v2::schema as acp_v2;
 use agent_settings::{AgentProfileId, AgentSettings};
 use anyhow::Context as _;
 use command_palette_hooks::CommandPaletteFilter;
@@ -56,9 +54,7 @@ use language::{
     LanguageRegistry,
     language_settings::{AllLanguageSettings, EditPredictionProvider},
 };
-use language_model::{
-    LanguageModel, LanguageModelId, LanguageModelProviderId, LanguageModelRegistry,
-};
+use language_model::{LanguageModelId, LanguageModelProviderId, LanguageModelRegistry};
 use project::{AgentId, DisableAiSettings, Project, ProjectPath};
 use prompt_store::{self, PromptBuilder, rules_to_skills_migration};
 use rope::Point;
@@ -94,6 +90,7 @@ pub use thread_import::{
     channels_with_threads, import_threads_from_other_channels,
 };
 use zed_actions;
+pub use zed_actions::agent::CycleFavoriteModels;
 pub use zed_actions::{CreateWorktree, NewWorktreeBranchTarget, SwitchWorktree};
 
 pub(crate) fn resolve_agent_image(
@@ -153,7 +150,7 @@ pub(crate) fn project_path_for_file_link(
         Some(project_path)
     };
     let path = SanitizedPath::new(path).as_path();
-    if path_style.is_absolute(path.to_str()?) {
+    if path_style.is_absolute(path) {
         let project_path = project.project_path_for_absolute_path(path, cx)?;
         let worktree = project.worktree_for_id(project_path.worktree_id, cx)?;
         let root = worktree.read(cx).abs_path();
@@ -301,8 +298,6 @@ actions!(
         ToggleProfileSelector,
         /// Cycles through available session modes.
         CycleModeSelector,
-        /// Cycles through favorited models in the ACP model selector.
-        CycleFavoriteModels,
         /// Expands the message editor to full size.
         ExpandMessageEditor,
         /// Archives the currently selected thread.
@@ -511,7 +506,7 @@ where
 #[action(namespace = agent)]
 #[serde(deny_unknown_fields)]
 pub struct NewNativeAgentThreadFromSummary {
-    from_session_id: acp_v1::SessionId,
+    from_session_id: acp_v2::SessionId,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
@@ -594,7 +589,7 @@ impl Agent {
 /// Content to initialize new external agent with.
 pub enum AgentInitialContent {
     ThreadSummary {
-        session_id: acp_v1::SessionId,
+        session_id: acp_v2::SessionId,
         title: Option<SharedString>,
     },
     ContentBlock {
@@ -623,21 +618,6 @@ impl ManageProfiles {
     pub fn customize_tools(profile_id: AgentProfileId) -> Self {
         Self {
             customize_tools: Some(profile_id),
-        }
-    }
-}
-
-#[derive(Clone)]
-pub(crate) enum ModelUsageContext {
-    InlineAssistant,
-}
-
-impl ModelUsageContext {
-    pub fn model(&self, cx: &App) -> Option<LanguageModel> {
-        match self {
-            Self::InlineAssistant => {
-                LanguageModelRegistry::read_global(cx).inline_assistant_model()
-            }
         }
     }
 }
@@ -1105,6 +1085,7 @@ mod tests {
             sandbox_permissions: Default::default(),
             show_turn_stats: false,
             show_merge_conflict_indicator: true,
+            auto_generate_thread_titles: true,
             max_idle_retained_threads: 5,
             threads_sidebar: agent_settings::ThreadsSidebarSettings {
                 scope: Default::default(),

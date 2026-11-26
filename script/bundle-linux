@@ -156,7 +156,7 @@ if ! "$skip_sentry"; then
         echo "Attempting sentry upload (attempt $attempt/3)..."
         if sentry-cli debug-files upload --include-sources --wait -p zed -o zed-dev \
             "${target_dir}/${target_triple}"/release/zed \
-            "${target_dir}/${remote_server_triple}"/release/remote_server; then
+            "${target_dir}/${remote_server_triple}"/release/remote-server; then
             echo "Sentry upload successful on attempt $attempt"
             break
         fi
@@ -176,11 +176,11 @@ fi
 # doesn't understand CREL sections produced by newer LLVM.
 llvm-objcopy --only-keep-debug "${target_dir}/${target_triple}/release/zed" "${target_dir}/${target_triple}/release/zed.dbg"
 if [[ -z "$fork_fast" ]]; then
-    llvm-objcopy --only-keep-debug "${target_dir}/${remote_server_triple}/release/remote_server" "${target_dir}/${remote_server_triple}/release/remote_server.dbg"
+    llvm-objcopy --only-keep-debug "${target_dir}/${remote_server_triple}/release/remote-server" "${target_dir}/${remote_server_triple}/release/remote-server.dbg"
 fi
 
 # Ensure that remote_server does not depend on libssl nor libcrypto, as we got rid of these deps.
-if [[ -z "$fork_fast" ]] && ldd "${target_dir}/${remote_server_triple}/release/remote_server" | grep -q 'libcrypto\|libssl'; then
+if [[ -z "$fork_fast" ]] && ldd "${target_dir}/${remote_server_triple}/release/remote-server" | grep -q 'libcrypto\|libssl'; then
     if [[ "$remote_server_triple" == *-musl ]]; then
         echo "Error: remote_server still depends on libssl or libcrypto" && exit 1
     else
@@ -205,7 +205,7 @@ mkdir -p "${zed_dir}/bin" "${zed_dir}/libexec"
 llvm-objcopy --strip-unneeded "${target_dir}/${target_triple}/release/zed" "${zed_dir}/libexec/zed-editor"
 llvm-objcopy --strip-debug --discard-all "${target_dir}/${target_triple}/release/cli" "${zed_dir}/bin/zed"
 if [[ -z "$fork_fast" ]]; then
-    llvm-objcopy --strip-debug --discard-all "${target_dir}/${remote_server_triple}/release/remote_server" "${temp_dir}/remote_server"
+    llvm-objcopy --strip-debug --discard-all "${target_dir}/${remote_server_triple}/release/remote-server" "${temp_dir}/remote_server"
 fi
 
 # Libs

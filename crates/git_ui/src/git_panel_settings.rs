@@ -16,6 +16,7 @@ pub struct ScrollbarSettings {
 
 #[derive(Debug, Clone, PartialEq, RegisterSetting)]
 pub struct GitPanelSettings {
+    pub date_style: settings::GitDateStyle,
     pub button: bool,
     pub multi_repo: bool,
     pub hide_clean_repos: bool,
@@ -62,6 +63,7 @@ impl Settings for GitPanelSettings {
     fn from_settings(content: &settings::SettingsContent) -> Self {
         let git_panel = content.git_panel.clone().unwrap();
         Self {
+            date_style: git_panel.date_style.unwrap(),
             button: git_panel.button.unwrap(),
             multi_repo: git_panel.multi_repo.unwrap_or(true),
             hide_clean_repos: git_panel.hide_clean_repos.unwrap_or(false),

@@ -311,7 +311,9 @@ pub struct AgentSettingsContent {
     pub max_content_width: Option<crate::PixelSetting>,
     /// The default model to use when creating new chats and for other features when a specific model is not specified.
     pub default_model: Option<LanguageModelSelection>,
-    /// The model to use for subagents spawned via the `spawn_agent` tool. Defaults to the parent agent's model when not specified.
+    /// Model to use for subagents. Defaults to the parent thread's model and its
+    /// thinking, effort, and speed settings when not specified. If the configured
+    /// model is unavailable, the parent thread's model is used instead.
     pub subagent_model: Option<LanguageModelSelection>,
     /// Favorite models to show at the top of the model selector.
     #[serde(default)]
@@ -397,7 +399,7 @@ pub struct AgentSettingsContent {
     pub terminal_init_command: Option<String>,
     /// How thinking blocks should be displayed by default in the agent panel.
     ///
-    /// Default: automatic
+    /// Default: auto
     pub thinking_display: Option<ThinkingBlockDisplay>,
     /// Whether clicking the stop button on a running terminal tool should also cancel the agent's generation.
     /// Note that this only applies to the stop button, not to ctrl+c inside the terminal.
@@ -421,6 +423,12 @@ pub struct AgentSettingsContent {
     ///
     /// Default: true
     pub show_merge_conflict_indicator: Option<bool>,
+    /// Whether to automatically generate a title for Zed Agent threads using the
+    /// summary model. When disabled, titles are only created when manually
+    /// requested (e.g. via the thread's "Regenerate Thread Title" action).
+    ///
+    /// Default: true
+    pub auto_generate_thread_titles: Option<bool>,
     /// Per-tool permission rules for granular control over which tool actions
     /// require confirmation.
     ///
@@ -472,6 +480,16 @@ impl AgentSettingsContent {
 
     pub fn set_inline_assistant_model(&mut self, provider: String, model: String) {
         self.inline_assistant_model = Some(LanguageModelSelection {
+            provider: provider.into(),
+            model,
+            enable_thinking: false,
+            effort: None,
+            speed: None,
+        });
+    }
+
+    pub fn set_commit_message_model(&mut self, provider: String, model: String) {
+        self.commit_message_model = Some(LanguageModelSelection {
             provider: provider.into(),
             model,
             enable_thinking: false,
@@ -1165,7 +1183,9 @@ pub enum ToolPermissionMode {
     Allow,
     /// Auto-reject with an error.
     Deny,
-    /// Always prompt for confirmation (default behavior).
+    /// Prompt for confirmation (default behavior).
+    /// The `edit_file` and `write_file` tools don't prompt for files inside
+    /// the project unless an `always_confirm` pattern matches.
     #[default]
     Confirm,
 }

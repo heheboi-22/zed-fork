@@ -1,5 +1,8 @@
 use crate::{
-    commit_view::CommitView, create_tag_at_commit, git_graph::GitGraph, project_diff::ProjectDiff,
+    commit_view::{CommitView, CommitViewOptions},
+    create_tag_at_commit,
+    git_graph::GitGraph,
+    project_diff::ProjectDiff,
 };
 use editor::Editor;
 use fs::Fs;
@@ -111,8 +114,7 @@ pub(crate) fn commit_context_menu(
                         sha.to_string(),
                         repository,
                         workspace.clone(),
-                        None,
-                        None,
+                        Default::default(),
                         window,
                         cx,
                     );
@@ -200,8 +202,7 @@ pub(crate) fn commit_context_menu(
                             sha.to_string(),
                             repository.downgrade(),
                             workspace.clone(),
-                            None,
-                            None,
+                            CommitViewOptions::default(),
                             window,
                             cx,
                         );

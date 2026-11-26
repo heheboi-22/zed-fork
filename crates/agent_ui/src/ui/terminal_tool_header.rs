@@ -25,10 +25,11 @@ pub struct TerminalToolHeader {
     running: bool,
     truncated_tooltip: Option<SharedString>,
     failed: bool,
-    exit_code: Option<u32>,
+    exit_code: Option<i64>,
     sandbox_warning: Option<TerminalSandboxWarning>,
     on_toggle_expand: Option<ClickHandler>,
     on_stop: Option<ClickHandler>,
+    stop_description: SharedString,
     command_slot: Option<AnyElement>,
 }
 
@@ -53,6 +54,7 @@ impl TerminalToolHeader {
             sandbox_warning: None,
             on_toggle_expand: None,
             on_stop: None,
+            stop_description: "Also possible by placing your cursor inside the terminal and using regular terminal bindings.".into(),
             command_slot: None,
         }
     }
@@ -78,7 +80,7 @@ impl TerminalToolHeader {
         self
     }
 
-    pub fn failed(mut self, exit_code: Option<u32>) -> Self {
+    pub fn failed(mut self, exit_code: Option<i64>) -> Self {
         self.failed = true;
         self.exit_code = exit_code;
         self
@@ -102,6 +104,11 @@ impl TerminalToolHeader {
         handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_stop = Some(Box::new(handler));
+        self
+    }
+
+    pub fn stop_description(mut self, description: impl Into<SharedString>) -> Self {
+        self.stop_description = description.into();
         self
     }
 
@@ -131,6 +138,7 @@ impl RenderOnce for TerminalToolHeader {
             sandbox_warning,
             on_toggle_expand,
             on_stop,
+            stop_description,
             command_slot,
         } = self;
 
@@ -205,8 +213,7 @@ impl RenderOnce for TerminalToolHeader {
                                         Tooltip::with_meta(
                                             "Stop This Command",
                                             None,
-                                            "Also possible by placing your cursor inside the \
-                                             terminal and using regular terminal bindings.",
+                                            stop_description.clone(),
                                             cx,
                                         )
                                     })
