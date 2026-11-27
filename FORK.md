@@ -38,6 +38,7 @@ Cara mengisi setelah sinkron:
     - `script/bundle-linux`: binary remote server sekarang `remote-server` (tanda hubung); guard `ZED_FORK_FAST` dipertahankan.
     - `crates/git/src/repository.rs`: method commit action fork (`checkout_commit`, `revert_commit`, `rebase_onto`, `format_patch`) dipertahankan karena dipakai Git Graph.
 - Auto-merge sempat menghilangkan `DiffBase::is_merge_base()` (`crates/project/src/git_store/diff_buffer_list.rs`); sudah dikembalikan.
+- Saat sinkron ini runner self-hosted `labkom-vps-zed-fork` sedang offline, jadi AppImage dibuat lewat runner hosted sementara (workflow tambahan kemudian dihapus). Rilisnya: `fork-1`, terpasang lewat `script/install-fork-appimage.sh`.
 
 ## Prinsip fork
 
